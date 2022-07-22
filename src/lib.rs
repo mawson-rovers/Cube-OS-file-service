@@ -24,6 +24,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use rust_udp::UdpStream;
 
 // We need this in this lib.rs file so we can build integration tests
 pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
@@ -106,7 +107,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         hash_chunk_size,
     );
 
-    let c_protocol = cbor_protocol::Protocol::new(&host.clone(), transfer_chunk_size);
+    let c_protocol = cbor_protocol::Protocol::new(UdpStream::new(host,format!("{}:{}",downlink_ip,downlink_port)), transfer_chunk_size);
 
     let timeout = config
         .get("timeout")
@@ -120,12 +121,19 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
 
     loop {
         // Listen on UDP port
-        let (_source, first_message) = match c_protocol.recv_message_peer() {
-            Ok((source, first_message)) => (source, first_message),
+        // let (_source, first_message) = match c_protocol.recv_message_peer() {
+        //     Ok((source, first_message)) => (source, first_message),
+        //     Err(e) => {
+        //         warn!("Error receiving message: {:?}", e);
+        //         continue;
+        //     }
+        // };
+        let first_message = match c_protocol.recv_message() {
+            Ok(first_message) => first_message,
             Err(e) => {
-                warn!("Error receiving message: {:?}", e);
-                continue;
-            }
+                    warn!("Error receiving message: {:?}", e);
+                    continue;
+                }
         };
 
         let config_ref = f_config.clone();
@@ -173,8 +181,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
 
                 // Set up the file system processor with the reply socket information
                 let f_protocol = FileProtocol::new(
-                    &format!("{}:{}", host_ref, 0),
-                    &format!("{}:{}", downlink_ip_ref, downlink_port),
+                    UdpStream::new(host_ref,format!("{}:{}",downlink_ip_ref,downlink_port)),
                     config_ref,
                 );
 
