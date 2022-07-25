@@ -24,7 +24,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use rust_udp::UdpStream;
+use rust_uart::SerialStream;
 
 // We need this in this lib.rs file so we can build integration tests
 pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
@@ -65,20 +65,33 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         None => 5,
     } as u16;
 
-    // Get the downlink port we'll be using when sending responses
-    let downlink_port = config
-        .get("downlink_port")
-        .and_then(|i| i.as_integer())
-        .unwrap_or(8080) as u16;
+    let bus = config.get("bus")
+        .and_then(|i| i.as_str().map(|str| str.to_owned()))
+        .unwrap_or("/dev/tty0".to_string());  
 
-    // Get the downlink ip we'll be using when sending responses
-    let downlink_ip = match config.get("downlink_ip") {
-        Some(ip) => match ip.as_str().map(|ip| ip.to_owned()) {
-            Some(ip) => ip,
-            None => "127.0.0.1".to_owned(),
-        },
-        None => "127.0.0.1".to_owned(),
+    let settings = serial::PortSettings{
+        baud_rate: serial::Baud9600,
+        char_size: serial::Bits8,
+        parity: serial::ParityNone,
+        stop_bits: serial::Stop1,
+        flow_control: serial::FlowNone,
     };
+    
+    let timeout = Duration::from_millis(50);
+    // // Get the downlink port we'll be using when sending responses
+    // let downlink_port = config
+    //     .get("downlink_port")
+    //     .and_then(|i| i.as_integer())
+    //     .unwrap_or(8080) as u16;
+
+    // // Get the downlink ip we'll be using when sending responses
+    // let downlink_ip = match config.get("downlink_ip") {
+    //     Some(ip) => match ip.as_str().map(|ip| ip.to_owned()) {
+    //         Some(ip) => ip,
+    //         None => "127.0.0.1".to_owned(),
+    //     },
+    //     None => "127.0.0.1".to_owned(),
+    // };
 
     // Get the inter chunk delay value
     let inter_chunk_delay = config
@@ -93,8 +106,8 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         .map(|chunks| chunks as u32);
 
     info!("Starting file transfer service");
-    info!("Listening on {}", host);
-    info!("Downlinking to {}:{}", downlink_ip, downlink_port);
+    // info!("Listening on {}", host);
+    // info!("Downlinking to {}:{}", downlink_ip, downlink_port);
     info!("Transfer Chunk {}", transfer_chunk_size);
     info!("Hash Chunk Size {}", hash_chunk_size);
 
@@ -107,7 +120,8 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         hash_chunk_size,
     );
 
-    let c_protocol = cbor_protocol::Protocol::new(UdpStream::new(host,format!("{}:{}",downlink_ip,downlink_port)), transfer_chunk_size);
+    // let c_protocol = cbor_protocol::Protocol::new(UdpStream::new(host,format!("{}:{}",downlink_ip,downlink_port)), transfer_chunk_size);
+    let c_protocol = cbor_protocol::Protocol::new(SerialStream::new(&bus, settings, timeout)?, transfer_chunk_size);
 
     let timeout = config
         .get("timeout")
@@ -137,7 +151,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         };
 
         let config_ref = f_config.clone();
-        let host_ref = host_ip.clone();
+        let bus_ref = bus.clone();
         let timeout_ref = timeout;
 
         let channel_id = match file_protocol::parse_channel_id(&first_message) {
@@ -172,7 +186,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             // Break the processing work off into its own thread so we can
             // listen for requests from other clients
             let shared_threads = threads.clone();
-            let downlink_ip_ref = downlink_ip.to_owned();
+            let settings_ref = settings.to_owned();
             thread::spawn(move || {
                 let state = State::Holding {
                     count: 0,
@@ -181,7 +195,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
 
                 // Set up the file system processor with the reply socket information
                 let f_protocol = FileProtocol::new(
-                    UdpStream::new(host_ref,format!("{}:{}",downlink_ip_ref,downlink_port)),
+                    SerialStream::new(&bus_ref,settings_ref,timeout_ref).unwrap(),
                     config_ref,
                 );
 
