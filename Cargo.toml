@@ -11,7 +11,7 @@ file-protocol = {git = "ssh://git@github.com/Cube-OS/file-protocol.git", branch 
 kubos-system = {git = "ssh://git@github.com/Cube-OS/system-api.git" }
 log = "^0.4.0"
 serde_cbor = "0.10.2"
-rust-udp = { git = "ssh://git@github.com/Cube-OS/rust-udp"}
+rust-i2c = { git = "ssh://git@github.com/Cube-OS/rust-i2c"}
 
 [dev-dependencies]
 blake2-rfc = "0.2.18"
