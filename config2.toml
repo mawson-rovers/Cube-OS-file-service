@@ -1,0 +1,14 @@
+[file-transfer-service]
+# storage_dir = "/home/system/file-storage"
+storage_dir = "/home/patrick/Cube-OS/file-service/storage2"
+timeout = 1000
+# downlink_ip = "192.168.0.1"
+downlink_ip = "127.0.0.1"
+downlink_port = 8081
+#downlink_port = 16002
+udp_socket = '172.29.57.165:8030'
+target = '127.0.0.1:8029'
+
+[file-transfer-service.addr]
+ip = "0.0.0.0"
+port = 8041

@@ -1,0 +1,21 @@
+# struct Donwload {
+	source_path: String,
+	target_ip: String,
+	target_port: u16,
+	target_path: String,
+}
+
+# struct Upload {
+	source_ip: String,
+	source_port: u16,
+	source_path: String,
+	target_path: String,
+}
+
+# struct CleanUp {
+	target_ip: String,
+	target_port: u16,
+	hash: Option<String>,
+}
+
+

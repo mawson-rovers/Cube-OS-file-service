@@ -14,25 +14,68 @@
 // limitations under the License.
 //
 
-#![deny(warnings)]
+// #![deny(warnings)]
+mod service;
+mod lib;
 
-use file_service::*;
-use kubos_system::logger as ServiceLogger;
-use kubos_system::Config as ServiceConfig;
+use crate::lib::*;
+// use kubos_system::logger as ServiceLogger;
+// use kubos_system::Config as ServiceConfig;
+use cubeos_service::{Service, Config, Logger};
 use log::{error, warn};
+use std::sync::Arc;
+use crate::service::*;
+use failure::format_err;
 
-fn main() {
-    ServiceLogger::init("file-transfer-service").unwrap();
+fn main() -> Result<(), failure::Error> {
+    Logger::init().unwrap();
 
-    let config = ServiceConfig::new("file-transfer-service")
+    let config = Config::new("file-transfer-service")
         .map_err(|err| {
             error!("Failed to load service config: {:?}", err);
             err
         })
         .unwrap();
 
-    match recv_loop(&config) {
-        Ok(()) => warn!("Service listener loop exited successfully?"),
-        Err(err) => error!("Service listener exited early: {}", err),
-    }
+    let service = Box::new(FileService::new(&config))
+    ;
+
+    #[cfg(feature = "ground")]
+    let socket = config
+        .get("udp_socket")
+        .ok_or_else(|| {
+            error!("Failed to load 'udp-socket' config value");
+            format_err!("Failed to load 'udp-socket' config value");
+        })
+        .unwrap();
+
+    #[cfg(feature = "ground")]
+    let target = config
+        .get("target")
+        .ok_or_else(|| {
+            error!("Failed to load 'target' config value");
+            format_err!("Failed to load 'target' config value");
+        })
+        .unwrap();
+
+    #[cfg(feature = "ground")]
+    // Start ground service
+    Service::new(
+        config.clone(),
+        socket.as_str().unwrap().to_string(),
+        target.as_str().unwrap().to_string(),
+        Some(Arc::new(json_handler)),
+    )
+    .start();
+
+    #[cfg(not(feature = "ground"))]
+    //Start up UDP server
+    Service::new(config.clone(), service, Some(Arc::new(udp_handler))).start();
+
+    recv_loop(&config)
+    // Ok(())
+    // match recv_loop(&config) {
+    //     Ok(()) => warn!("Service listener loop exited successfully?"),
+    //     Err(err) => error!("Service listener exited early: {}", err),
+    // }
 }

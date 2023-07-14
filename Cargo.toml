@@ -5,13 +5,15 @@ authors = ["Ryan Plauche <ryan@kubos.co>"]
 edition = "2018"
 
 [dependencies]
-cbor-protocol = { git = "ssh://git@github.com/Cube-OS/cbor-protocol.git", branch = "stream"}  
+cbor-protocol = { git = "ssh://git@github.com/Cube-OS/cbor-protocol.git", branch = "stream"}
 failure = "0.1.2"
 file-protocol = {git = "ssh://git@github.com/Cube-OS/file-protocol.git", branch = "stream"}
-kubos-system = {git = "ssh://git@github.com/Cube-OS/system-api.git" }
+cubeos-service = { git = "ssh://git@github.com/Cube-OS/cubeos-service"}
 log = "^0.4.0"
 serde_cbor = "0.10.2"
-rust-udp = { git = "ssh://git@github.com/Cube-OS/rust-udp"}
+udp-rs = { git = "ssh://git@github.com/Cube-OS/udp-rs"}
+hal-stream = { git = "ssh://git@github.com/Cube-OS/hal-stream" }
+serde = { version = "1.0.58", features = ["derive"] }
 
 [dev-dependencies]
 blake2-rfc = "0.2.18"
@@ -19,3 +21,7 @@ rand = "0.5.5"
 serde = "1.0.58"
 serde_cbor = "0.10.2"
 tempfile = "3"
+
+[features]
+default = []
+ground = ["cubeos-service/ground"]
