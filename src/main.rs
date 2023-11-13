@@ -22,7 +22,7 @@ use kubos_system::Config as ServiceConfig;
 use log::{error, warn};
 
 fn main() {
-    ServiceLogger::init("file-transfer-service").unwrap();
+    ServiceLogger::init().unwrap();
 
     let config = ServiceConfig::new("file-transfer-service")
         .map_err(|err| {

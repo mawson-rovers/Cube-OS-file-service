@@ -5,15 +5,16 @@ authors = ["Ryan Plauche <ryan@kubos.co>"]
 edition = "2018"
 
 [dependencies]
-#cbor-protocol = { path = "../../libs/cbor-protocol" }
-cbor-protocol = { git = "ssh://git@github.com/Cube-OS/cbor-protocol.git"}  
+cbor-protocol = { path = "../cbor-protocol" }
+# cbor-protocol = { git = "ssh://git@github.com/Cube-OS/cbor-protocol.git"}  
 failure = "0.1.2"
-#file-protocol = { path = "../../libs/file-protocol" }
-file-protocol = {git = "ssh://git@github.com/Cube-OS/file-protocol.git"}
+file-protocol = { path = "../file-protocol" }
+# file-protocol = {git = "ssh://git@github.com/Cube-OS/file-protocol.git"}
 #kubos-system = { path = "../../apis/system-api" }
 kubos-system = {git = "ssh://git@github.com/Cube-OS/system-api.git" }
 log = "^0.4.0"
 serde_cbor = "0.10.2"
+crossbeam = "0.8"
 
 [dev-dependencies]
 blake2-rfc = "0.2.18"
