@@ -178,7 +178,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
                 };
 
                 // Set up the file system processor with the reply socket information
-                let mut f_protocol = FileProtocol::new(
+                let f_protocol = FileProtocol::new(
                     &format!("{}:{}", host_ref, 0),
                     &format!("{}:{}", downlink_ip_ref, downlink_port),
                     config_ref,
