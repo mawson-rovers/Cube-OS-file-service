@@ -24,6 +24,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::net::UdpSocket;
 
 // We need this in this lib.rs file so we can build integration tests
 pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
@@ -106,7 +107,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         hash_chunk_size,
     );
 
-    let c_protocol = cbor_protocol::Protocol::new(&host.clone(), transfer_chunk_size);
+    // let c_protocol = cbor_protocol::Protocol::new(&host.clone(), transfer_chunk_size);
 
     let timeout = config
         .get("timeout")
@@ -114,14 +115,19 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         .unwrap_or(Duration::from_secs(2));
 
     // Setup map of channel IDs to thread channels
-    let raw_threads: HashMap<u32, Sender<serde_cbor::Value>> = HashMap::new();
+    let raw_threads: HashMap<u32, Sender<Vec<u8>>> = HashMap::new();
     // Create thread sharable wrapper
     let threads = Arc::new(Mutex::new(raw_threads));
 
     loop {
         // Listen on UDP port
-        let (_source, first_message) = match c_protocol.recv_message_peer() {
-            Ok((source, first_message)) => (source, first_message),
+        let mut buf = vec![0; hash_chunk_size];
+        let host_socket = UdpSocket::bind(host.clone())?;
+        let (_source, first_message) = match host_socket.recv_from(&mut buf) {
+            Ok((size, source)) => {
+                buf.truncate(size);
+                (source, buf)
+            }
             Err(e) => {
                 warn!("Error receiving message: {:?}", e);
                 continue;
@@ -149,7 +155,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             .unwrap()
             .contains_key(&channel_id)
         {
-            let (sender, receiver): (Sender<serde_cbor::Value>, Receiver<serde_cbor::Value>) =
+            let (sender, receiver): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
                 mpsc::channel();
 
             threads
@@ -172,7 +178,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
                 };
 
                 // Set up the file system processor with the reply socket information
-                let f_protocol = FileProtocol::new(
+                let mut f_protocol = FileProtocol::new(
                     &format!("{}:{}", host_ref, 0),
                     &format!("{}:{}", downlink_ip_ref, downlink_port),
                     config_ref,
