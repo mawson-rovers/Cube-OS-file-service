@@ -92,6 +92,11 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         .and_then(|chunks| chunks.as_integer())
         .map(|chunks| chunks as u32);
 
+    let num_threads = config
+        .get("num_threads")
+        .and_then(|i| i.as_integer())
+        .unwrap_or(5) as u8;
+
     info!("Starting file transfer service");
     info!("Listening on {}", host);
     info!("Downlinking to {}:{}", downlink_ip, downlink_port);
@@ -182,6 +187,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
                     &format!("{}:{}", host_ref, 0),
                     &format!("{}:{}", downlink_ip_ref, downlink_port),
                     config_ref,
+                    num_threads,
                 );
 
                 // Listen, process, and react to the remaining messages in the
