@@ -48,8 +48,8 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
 
     // Get the chunk size to be used for transfers
     let transfer_chunk_size = match config.get("transfer_chunk_size") {
-        Some(val) => val.as_integer().unwrap_or(1024),
-        None => 1024,
+        Some(val) => val.as_integer().unwrap_or(896),
+        None => 896,
     };
 
     // Get the chunk size to be used for hashing

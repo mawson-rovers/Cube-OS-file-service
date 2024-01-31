@@ -8,8 +8,8 @@ edition = "2018"
 failure = "0.1.2"
 file-protocol = { path = "../file-protocol" }
 # file-protocol = {git = "ssh://git@github.com/Cube-OS/file-protocol.git"}
-#kubos-system = { path = "../../apis/system-api" }
-kubos-system = {git = "ssh://git@github.com/Cube-OS/system-api.git" }
+kubos-system = { path = "../../system-api" }
+# kubos-system = {git = "ssh://git@github.com/Cube-OS/system-api.git" }
 log = "^0.4.0"
 
 [dev-dependencies]
