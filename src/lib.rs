@@ -24,6 +24,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::net::UdpSocket;
 
 // We need this in this lib.rs file so we can build integration tests
 pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
@@ -47,8 +48,8 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
 
     // Get the chunk size to be used for transfers
     let transfer_chunk_size = match config.get("transfer_chunk_size") {
-        Some(val) => val.as_integer().unwrap_or(1024),
-        None => 1024,
+        Some(val) => val.as_integer().unwrap_or(896),
+        None => 896,
     };
 
     // Get the chunk size to be used for hashing
@@ -91,6 +92,11 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         .and_then(|chunks| chunks.as_integer())
         .map(|chunks| chunks as u32);
 
+    let num_threads = config
+        .get("num_threads")
+        .and_then(|i| i.as_integer())
+        .unwrap_or(5) as u8;
+
     info!("Starting file transfer service");
     info!("Listening on {}", host);
     info!("Downlinking to {}:{}", downlink_ip, downlink_port);
@@ -106,7 +112,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         hash_chunk_size,
     );
 
-    let c_protocol = cbor_protocol::Protocol::new(&host.clone(), transfer_chunk_size);
+    // let c_protocol = cbor_protocol::Protocol::new(&host.clone(), transfer_chunk_size);
 
     let timeout = config
         .get("timeout")
@@ -114,14 +120,19 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         .unwrap_or(Duration::from_secs(2));
 
     // Setup map of channel IDs to thread channels
-    let raw_threads: HashMap<u32, Sender<serde_cbor::Value>> = HashMap::new();
+    let raw_threads: HashMap<u32, Sender<Vec<u8>>> = HashMap::new();
     // Create thread sharable wrapper
     let threads = Arc::new(Mutex::new(raw_threads));
 
     loop {
         // Listen on UDP port
-        let (_source, first_message) = match c_protocol.recv_message_peer() {
-            Ok((source, first_message)) => (source, first_message),
+        let mut buf = vec![0; hash_chunk_size];
+        let host_socket = UdpSocket::bind(host.clone())?;
+        let (_source, first_message) = match host_socket.recv_from(&mut buf) {
+            Ok((size, source)) => {
+                buf.truncate(size);
+                (source, buf)
+            }
             Err(e) => {
                 warn!("Error receiving message: {:?}", e);
                 continue;
@@ -149,7 +160,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             .unwrap()
             .contains_key(&channel_id)
         {
-            let (sender, receiver): (Sender<serde_cbor::Value>, Receiver<serde_cbor::Value>) =
+            let (sender, receiver): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
                 mpsc::channel();
 
             threads
@@ -176,6 +187,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
                     &format!("{}:{}", host_ref, 0),
                     &format!("{}:{}", downlink_ip_ref, downlink_port),
                     config_ref,
+                    num_threads,
                 );
 
                 // Listen, process, and react to the remaining messages in the
