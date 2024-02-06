@@ -208,7 +208,7 @@ pub fn upload(
 
     // start the engine to send the file data chunks
     f_protocol.message_engine(
-        |d| f_protocol.recv(Some(d)),
+        |d| f_protocol.recv(None),  // try blocking so we can debug
         Duration::from_secs(2),
         &State::Transmitting { transmitted_files: 0, total_files: 1 },
     )?;
