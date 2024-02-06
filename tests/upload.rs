@@ -34,6 +34,8 @@ use tempfile::TempDir;
 // Upload single-chunk file from scratch
 #[test]
 fn upload_single() {
+    let _ = env_logger::try_init();
+
     let test_dir = TempDir::new().expect("Failed to create test dir");
     let test_dir_str = test_dir.path().to_str().unwrap();
     let source = format!("{}/source", test_dir_str);
