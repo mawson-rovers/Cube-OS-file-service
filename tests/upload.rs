@@ -38,8 +38,8 @@ fn upload_single() {
     let test_dir_str = test_dir.path().to_str().unwrap();
     let source = format!("{}/source", test_dir_str);
     let dest = format!("{}/dest", test_dir_str);
-    let service_port = 7000;
-    let downlink_port = 6000;
+    let service_port = 17087;
+    let downlink_port = 16366;
 
     let contents = "upload_single".as_bytes();
 
