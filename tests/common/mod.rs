@@ -17,8 +17,7 @@
 #![allow(dead_code)]
 
 use blake2_rfc::blake2s::Blake2s;
-use file_protocol::{FileProtocol, FileProtocolConfig, ProtocolError, State};
-use serde_cbor::{from_slice, ser};
+use file_protocol::{FileProtocol, FileProtocolConfig, Message, ProtocolError, State};
 use std::fs::File;
 use std::io::prelude::*;
 use std::thread;
@@ -74,13 +73,13 @@ pub fn download(
         (chunk_size as usize) * 2,
     );
     let f_protocol =
-        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config);
+        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config, 1);
 
     let channel = f_protocol.generate_channel()?;
 
     // Send our file request to the remote addr and verify that it's
     // going to be able to send it
-    f_protocol.send_import(channel, source_path)?;
+    f_protocol.send_import_file(channel, source_path)?;
 
     // Wait for the request reply.
     // Note/TODO: We don't use a timeout here because we don't know how long it will
@@ -92,7 +91,7 @@ pub fn download(
     };
 
     let state = f_protocol.process_message(
-        reply,
+        reply.as_slice(),
         &State::StartReceive {
             path: target_path.to_string(),
         },
@@ -120,13 +119,13 @@ pub fn download_partial(
         (chunk_size as usize) * 2,
     );
     let f_protocol =
-        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config);
+        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config, 1);
 
     let channel = f_protocol.generate_channel()?;
 
     // Send our file request to the remote addr and verify that it's
     // going to be able to send it
-    f_protocol.send_import(channel, source_path)?;
+    f_protocol.send_import_file(channel, source_path)?;
 
     // Wait for the request reply.
     // Note/TODO: We don't use a timeout here because we don't know how long it will
@@ -139,22 +138,34 @@ pub fn download_partial(
 
     // Modify the reply so that we don't attempt to download
     // all of the chunks
-    let mut mod_reply = reply.clone();
-    let reply_vec = mod_reply.as_array_mut().unwrap();
-    let channel = reply_vec.remove(0);
-    // Pull out bool
-    reply_vec.remove(0);
-    let hash = reply_vec.remove(0);
-    let num_chunks = reply_vec.remove(0).as_u64().unwrap();
-    let mode = reply_vec.remove(0);
+    let reply = bincode::deserialize::<Message>(&reply)?;
 
     // Recreate the reply but ask for one less chunk so we don't download
     // the whole file this time
-    let new_reply = ser::to_vec_packed(&(channel, true, hash, num_chunks - 1, mode)).unwrap();
-    let new_reply = from_slice(&new_reply).unwrap();
+    let new_reply = match reply {
+        Message::ReceiveChunk { channel_id, hash, chunk_num, data } => {
+            Message::ReceiveChunk {
+                channel_id,
+                hash,
+                chunk_num: chunk_num - 1,
+                data,
+            }
+        },
+        Message::SuccessTransmit { channel_id, file_name, hash, num_chunks, mode, last } => {
+            Message::SuccessTransmit {
+                channel_id,
+                file_name,
+                hash,
+                num_chunks: num_chunks - 1,
+                mode,
+                last,
+            }
+        },
+        _ => panic!("Unexpected message received: {:?}", reply),
+    };
 
     let state = f_protocol.process_message(
-        new_reply,
+        &bincode::serialize::<Message>(&new_reply)?,
         &State::StartReceive {
             path: target_path.to_string(),
         },
@@ -182,10 +193,10 @@ pub fn upload(
         (chunk_size as usize) * 2,
     );
     let f_protocol =
-        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config);
+        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config, 1);
 
     // copy file to upload to temp storage. calculate the hash and chunk info
-    let (hash, num_chunks, mode) = f_protocol.initialize_file(&source_path)?;
+    let (_filename, hash, num_chunks, mode) = f_protocol.initialize_file(&source_path)?;
 
     let channel = f_protocol.generate_channel()?;
 
@@ -199,7 +210,7 @@ pub fn upload(
     f_protocol.message_engine(
         |d| f_protocol.recv(Some(d)),
         Duration::from_secs(2),
-        &State::Transmitting,
+        &State::Transmitting { transmitted_files: 0, total_files: 1 },
     )?;
 
     // note: the original upload client function does not return the hash.
@@ -226,10 +237,10 @@ pub fn upload_partial(
         (chunk_size as usize) * 2,
     );
     let f_protocol =
-        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config);
+        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config, 1);
 
     // Copy file to upload to temp storage. calculate the hash and chunk info
-    let (hash, num_chunks, mode) = f_protocol.initialize_file(&source_path)?;
+    let (_filename, hash, num_chunks, mode) = f_protocol.initialize_file(&source_path)?;
 
     let channel = f_protocol.generate_channel()?;
 
@@ -243,7 +254,7 @@ pub fn upload_partial(
     f_protocol.message_engine(
         |d| f_protocol.recv(Some(d)),
         Duration::from_secs(2),
-        &State::Transmitting,
+        &State::Transmitting { transmitted_files: 0, total_files: 1 },
     )?;
 
     // Note: The original upload client function does not return the hash.
@@ -269,7 +280,7 @@ pub fn cleanup(
         (chunk_size as usize) * 2,
     );
     let f_protocol =
-        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config);
+        FileProtocol::new(&format!("{}:{}", host_ip, host_port), remote_addr, f_config, 1);
 
     let channel = f_protocol.generate_channel()?;
 
