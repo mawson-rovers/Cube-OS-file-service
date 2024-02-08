@@ -23,6 +23,7 @@ use kubos_system::Config as ServiceConfig;
 use std::fs;
 use std::thread;
 use std::time::Duration;
+use std::io::Write;
 use tempfile::TempDir;
 
 // NOTE: Each test's file contents must be unique. Otherwise the hash is the same, so
@@ -34,7 +35,20 @@ use tempfile::TempDir;
 // Upload single-chunk file from scratch
 #[test]
 fn upload_single() {
-    let _ = env_logger::try_init();
+    let _ = env_logger::builder()
+        .format(|buf, record| {
+            let ts = buf.timestamp_micros();
+            writeln!(
+                buf,
+                "[{} {} {} {:?}] {}",
+                ts,
+                record.level(),
+                record.module_path().unwrap_or("?"),
+                thread::current().id(),
+                record.args()
+            )
+        })
+        .try_init();
 
     let test_dir = TempDir::new().expect("Failed to create test dir");
     let test_dir_str = test_dir.path().to_str().unwrap();
