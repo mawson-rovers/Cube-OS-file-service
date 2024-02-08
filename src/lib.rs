@@ -112,7 +112,9 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
         hash_chunk_size,
     );
 
+    // Listen on UDP port
     // let c_protocol = cbor_protocol::Protocol::new(&host.clone(), transfer_chunk_size);
+    let host_socket = UdpSocket::bind(host.clone())?;
 
     let timeout = config
         .get("timeout")
@@ -125,9 +127,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
     let threads = Arc::new(Mutex::new(raw_threads));
 
     loop {
-        // Listen on UDP port
         let mut buf = vec![0; hash_chunk_size];
-        let host_socket = UdpSocket::bind(host.clone())?;
         let (_source, first_message) = match host_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 buf.truncate(size);
