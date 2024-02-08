@@ -125,12 +125,17 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
     let threads = Arc::new(Mutex::new(raw_threads));
 
     loop {
+        info!("start recv loop");
+
         // Listen on UDP port
         let mut buf = vec![0; hash_chunk_size];
         let host_socket = UdpSocket::bind(host.clone())?;
+
+        info!("recv");
         let (_source, first_message) = match host_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 buf.truncate(size);
+                info!("Received UDP packet with size: {}", size);
                 (source, buf)
             }
             Err(e) => {
@@ -139,10 +144,13 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             }
         };
 
+        info!("post-recv");
+
         let config_ref = f_config.clone();
         let host_ref = host_ip.clone();
         let timeout_ref = timeout;
 
+        info!("parse channel");
         let channel_id = match file_protocol::parse_channel_id(&first_message) {
             Ok(channel_id) => channel_id,
             Err(e) => {
@@ -151,6 +159,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             }
         };
 
+        info!("post-parse channel");
         if !threads
             .lock()
             .map_err(|err| {
@@ -160,6 +169,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             .unwrap()
             .contains_key(&channel_id)
         {
+            info!("start channel handler");
             let (sender, receiver): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
                 mpsc::channel();
 
@@ -177,6 +187,8 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             let shared_threads = threads.clone();
             let downlink_ip_ref = downlink_ip.to_owned();
             thread::spawn(move || {
+                info!("in channel handler thread");
+
                 let state = State::Holding {
                     count: 0,
                     prev_state: Box::new(State::Done),
@@ -218,6 +230,8 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             });
         }
 
+        info!("post-start channel handler");
+
         if let Some(sender) = threads
             .lock()
             .map_err(|err| {
@@ -227,11 +241,13 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
             .unwrap()
             .get(&channel_id)
         {
+            info!("dispatch to handler");
             if let Err(e) = sender.send(first_message) {
                 warn!("Error when sending to channel {}: {:?}", channel_id, e);
             }
         }
 
+        info!("post-dispatch to handler");
         if !threads
             .lock()
             .map_err(|err| {
@@ -251,5 +267,7 @@ pub fn recv_loop(config: &ServiceConfig) -> Result<(), failure::Error> {
                 .unwrap()
                 .remove(&channel_id);
         }
+
+        info!("end of recv loop");
     }
 }
